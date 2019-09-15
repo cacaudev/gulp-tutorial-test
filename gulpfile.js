@@ -3,78 +3,75 @@
 "use strict";
 
 // Load plugins
-var gulp = require('gulp');
-var inject = require('gulp-inject');
-var webserver = require('gulp-webserver');
-var del = require('del');
+var gulp = require('gulp'),
+    browsersync = require("browser-sync").create();
 
 var paths = {
   src: './src/**/*',
   srcHTML: './src/**/*.html',
   srcCSS: './src/**/*.css',
-  srcJS: './src/**/*.js', tmp: 'tmp',
-  tmpIndex: './tmp/index.html',
-  tmpCSS: './tmp/**/*.css',
-  tmpJS: './tmp/**/*.js', dist: 'dist',
-  distIndex: './dist/index.html',
-  distCSS: './dist/**/*.css',
-  distJS: './dist/**/*.js'
+  srcJS: './src/**/*.js',  
+
+  tmp: './tmp/', // tmp folder
+  tmpIndex: './tmp/index.html', // index.html in tmp folder
+  tmpCSS: './tmp/**/*.css', // css files in tmp folder
+  tmpJS: './tmp/**/*.js', // js files in tmp folder  dist: 'dist',
+  
+  distIndex: 'dist/index.html',
+  distCSS: 'dist/**/*.css',
+  distJS: 'dist/**/*.js'
 };
 
-// Clean tmp and dist folder
-gulp.task('clean', function (done) {
-  del([paths.tmp]);
+// BrowserSync
+function browserSync(done) {
+  browsersync.init({
+    injectChanges: true,
+    server: {
+      baseDir:'./tmp/'
+    },
+    port: 3000
+  });
   done();
-});
+}
 
 // Copy all html files to tmp
-gulp.task('html', function () {
+function html() {
   return gulp
     .src(paths.srcHTML)
     .pipe(gulp.dest(paths.tmp));
-});
+}
 
 // Copy all css files to tmp
-gulp.task('css', function () {
+function css() {
   return gulp
-    .src(paths.srcCSS)
-    .pipe(gulp.dest(paths.tmp));
-});
+  .src(paths.srcCSS)
+  .pipe(gulp.dest(paths.tmp));
+}
 
 // Copy all js files to tmp
-gulp.task('js', function () {
+function js() {
   return gulp
     .src(paths.srcJS)
     .pipe(gulp.dest(paths.tmp));
-});
+}
 
-gulp.task('copy', gulp.series('clean', 'html', 'css', 'js'));
+// Watch files and rerun the copy tasks to tmp, and reload the page
+function watchFiles() {
+  gulp.watch('./src/**/*.css')
+    .on('change', gulp.series(css, browsersync.reload));
+  gulp.watch('./src/**/*.js')
+    .on('change', gulp.series(js, browsersync.reload));
+  gulp.watch('./src/index.html')
+    .on('change', gulp.series(html, browsersync.reload));
+}
 
-// Inject css and js files on index.html
-gulp.task('inject', gulp.series('copy'), function () {
-  return gulp.src(paths.tmpIndex)
-    .pipe(inject(
-      gulp.src(
-        paths.tmpCSS,
-        { read: false },
-        { name: 'css' }
-      )
-    ))
-    .pipe(inject(
-      gulp.src(
-        paths.tmpJS,
-        { read: false },
-        { name: 'js' }
-      )
-    ))
-    .pipe(gulp.dest(paths.tmp));
-});
+const build = gulp.series(html, css, js);
+const watch = gulp.series(
+  build, 
+  gulp.parallel(watchFiles, browserSync)
+);
 
-// live dev server
-gulp.task('serve', gulp.series('inject'), function () {
-  return gulp.src(paths.tmp)
-    .pipe(webserver({
-      port: 3000,
-      livereload: true
-    }));
-});
+// Export tasks
+exports.build = build;
+exports.watch = watch;
+exports.default = build;
